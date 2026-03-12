@@ -453,6 +453,7 @@ MonoBehaviour:
   rows: 8
   columns: 8
   spacing: 1.1
+  matchSound: {fileID: 8300000, guid: e5a5cf2c27026594f8d3adb5cf559215, type: 3}
 --- !u!4 &848396337
 Transform:
   m_ObjectHideFlags: 0

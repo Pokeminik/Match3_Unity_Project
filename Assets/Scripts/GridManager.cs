@@ -20,9 +20,10 @@ public class GridManager : MonoBehaviour
     [SerializeField] private int rows = 8;
     [SerializeField] private int columns = 8;
     [SerializeField] private float spacing = 1.1f;
-
+    [Header("Audio")]
+    [SerializeField] private AudioClip matchSound;
     private NodeController[,] _nodes;
-    // Додай цей метод, щоб кнопка могла його викликати
+    private int _comboCount = 0;
     public void GoToMainMenu()
     {
         SceneManager.LoadScene("MainMenu");
@@ -59,7 +60,25 @@ public class GridManager : MonoBehaviour
             }
         }
     }
+    private void PlayMatchSound()
+    {
+        if (UIManager.Instance != null && matchSound != null)
+        {
+            var source = UIManager.Instance.GetComponent<AudioSource>();
+            float vol = PlayerPrefs.GetFloat("SFXVolume", 0.5f);
 
+            // Кожен наступний вибух підвищує тон на 0.1 (10%)
+            // Початковий тон 1.0, далі 1.1, 1.2 і так далі
+            source.pitch = 1f + (_comboCount * 0.1f);
+
+            // Обмежуємо максимальний пітч, щоб звук не став занадто "писклявим"
+            if (source.pitch > 2f) source.pitch = 2f;
+
+            source.PlayOneShot(matchSound, vol);
+
+            _comboCount++; // Збільшуємо комбо після кожного вибуху
+        }
+    }
     private Vector3 GetWorldPosition(int r, int c)
     {
         float xPos = (c - (columns / 2f) + 0.5f) * spacing;
@@ -90,6 +109,7 @@ public class GridManager : MonoBehaviour
 
         if (_firstSelected == null)
         {
+            _comboCount = 0;
             _firstSelected = node;
             _firstSelected.Select();
         }
@@ -154,6 +174,7 @@ public class GridManager : MonoBehaviour
 
         if (matches.Count > 0)
         {
+            PlayMatchSound();
             _score += matches.Count * 10; // Наприклад, 10 очок за фішку
             UpdateScoreUI();
             _isProcessing = true;
