@@ -7,7 +7,7 @@ public class GridManager : MonoBehaviour
 {
     [Header("UI елементи")]
     [SerializeField] private TextMeshProUGUI scoreText;
-    [SerializeField] private TextMeshProUGUI comboText; // Додай у інспектор
+    [SerializeField] private TextMeshProUGUI comboText; 
     private int _score = 0;
     private int _comboCount = 0;
 
@@ -17,13 +17,17 @@ public class GridManager : MonoBehaviour
 
     [Header("Налаштування сітки")]
     [SerializeField] private GameObject nodePrefab;
-    [SerializeField] private int rows = 8;
+    [SerializeField] private int rows = 7;
     [SerializeField] private int columns = 8;
     [SerializeField] private float spacing = 1.1f;
-
+    [Header("Зміщення сітки")]
+    [SerializeField] private Vector2 gridOffset = Vector2.zero; 
     [Header("Текстури фішок")]
-    [SerializeField] private Sprite[] nodeSprites; // Перетягни 5 спрайтів сюди
-
+    [SerializeField] private Sprite[] nodeSprites;
+    [Header("Ефекти сітки")]
+    [SerializeField] private GameObject tileBGPrefab; 
+    private GameObject[,] _tileBGs;
+    [SerializeField] private GameObject explosionPrefab;
     [Header("Audio")]
     [SerializeField] private AudioClip matchSound;
 
@@ -39,11 +43,20 @@ public class GridManager : MonoBehaviour
     void GenerateLevel()
     {
         _nodes = new NodeController[rows, columns];
+        _tileBGs = new GameObject[rows, columns]; 
 
         for (int r = 0; r < rows; r++)
         {
             for (int c = 0; c < columns; c++)
             {
+                Vector3 pos = GetWorldPosition(r, c);
+
+
+                GameObject newTileBG = Instantiate(tileBGPrefab, pos, Quaternion.identity);
+                newTileBG.transform.parent = transform;
+                _tileBGs[r, c] = newTileBG; 
+
+
                 Sprite randomSprite;
                 int attempts = 0;
                 do
@@ -52,7 +65,6 @@ public class GridManager : MonoBehaviour
                     attempts++;
                 } while (WouldCreateMatch(r, c, randomSprite) && attempts < 100);
 
-                Vector3 pos = GetWorldPosition(r, c);
                 GameObject newNode = Instantiate(nodePrefab, pos, Quaternion.identity);
                 newNode.transform.parent = transform;
 
@@ -167,6 +179,23 @@ public class GridManager : MonoBehaviour
             {
                 if (match != null)
                 {
+                    // --- СТВОРЕННЯ ВИБУХУ ЧАСТИНОК ---
+                    if (explosionPrefab != null)
+                    {
+                        GameObject exp = Instantiate(explosionPrefab, match.transform.position, Quaternion.identity);
+
+                        // Отримуємо колір на основі спрайту
+                        Color effectColor = GetColorFromSprite(match.GetSprite());
+
+                        // Ініціалізуємо скрипт вибуху
+                        Explosion explosionScript = exp.GetComponent<Explosion>();
+                        if (explosionScript != null)
+                        {
+                            explosionScript.Init(effectColor);
+                        }
+                    }
+                    // --------------------------------
+
                     _nodes[match.Row, match.Col] = null;
                     StartCoroutine(ShrinkAndDestroy(match.gameObject));
                 }
@@ -179,6 +208,16 @@ public class GridManager : MonoBehaviour
         }
     }
 
+    // Допоміжний метод для визначення кольору вибуху
+    private Color GetColorFromSprite(Sprite sprite)
+    {
+        if (sprite.name.Contains("apple")) return Color.red;
+        if (sprite.name.Contains("banana")) return Color.yellow;
+        if (sprite.name.Contains("blueberry")) return Color.blue;
+        if (sprite.name.Contains("grape")) return new Color(0.5f, 0, 0.5f);
+        if (sprite.name.Contains("strawberry")) return Color.red;
+        return Color.white;
+    }
     private System.Collections.IEnumerator ShrinkAndDestroy(GameObject node)
     {
         float elapsed = 0;
@@ -270,10 +309,6 @@ public class GridManager : MonoBehaviour
             _comboCount++;
         }
     }
-
-    // Решта методів (SwapNodes, FillHoles, IsAdjacent тощо) залишаються без змін, 
-    // але переконайся, що вони використовують GetSprite() замість GetColor()
-
     private System.Collections.IEnumerator SwapNodes(NodeController a, NodeController b)
     {
         _isProcessing = true;
@@ -367,7 +402,24 @@ public class GridManager : MonoBehaviour
         yield return new WaitForSeconds(0.3f);
         CheckForMatches();
     }
-
+    private void OnValidate()
+    {
+        // Перевіряємо, чи гра запущена і чи сітка вже створена
+        if (_nodes != null && Application.isPlaying)
+        {
+            for (int r = 0; r < rows; r++)
+            {
+                for (int c = 0; c < columns; c++)
+                {
+                    if (_nodes[r, c] != null)
+                    {
+                        // Миттєво переміщуємо фрукт на нову позицію з урахуванням офсету
+                        _nodes[r, c].transform.position = GetWorldPosition(r, c);
+                    }
+                }
+            }
+        }
+    }
     private System.Collections.IEnumerator MoveNode(NodeController node, Vector3 target)
     {
         float elapsed = 0; float duration = 0.2f;
@@ -411,8 +463,9 @@ public class GridManager : MonoBehaviour
 
     private Vector3 GetWorldPosition(int r, int c)
     {
-        float xPos = (c - (columns / 2f) + 0.5f) * spacing;
-        float yPos = (r - (rows / 2f) + 0.5f) * spacing;
+        // Додаємо gridOffset.x до X та gridOffset.y до Y
+        float xPos = ((c - (columns / 2f) + 0.5f) * spacing) + gridOffset.x;
+        float yPos = ((r - (rows / 2f) + 0.5f) * spacing) + gridOffset.y;
         return new Vector3(xPos, yPos, 0);
     }
 
