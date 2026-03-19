@@ -26,13 +26,33 @@ public class NodeController : MonoBehaviour
     }
 
     public Sprite GetSprite() => _mySprite;
-
+    public void SetSprite(Sprite newSprite)
+    {
+        _mySprite = newSprite;
+        if (_renderer == null) _renderer = GetComponent<SpriteRenderer>();
+        _renderer.sprite = _mySprite;
+    }
     public void UpdateCoordinates(int r, int c)
     {
         Row = r;
         Col = c;
     }
-
+    private void OnMouseEnter()
+    {
+        GridManager gm = Object.FindFirstObjectByType<GridManager>();
+        if (gm != null) gm.OnHoverNode(this, true);
+    }
+    private void OnMouseExit()
+    {
+        GridManager gm = Object.FindFirstObjectByType<GridManager>();
+        if (gm != null) gm.OnHoverNode(this, false);
+    }
+    public void Highlight(bool active)
+    {
+        if (_renderer == null) _renderer = GetComponent<SpriteRenderer>();
+        // Робимо фрукт напівпрозорим або жовтуватим
+        _renderer.color = active ? new Color(1f, 1f, 0.5f, 0.7f) : Color.white;
+    }
     // Метод при натисканні (Вибір)
     public void Select()
     {

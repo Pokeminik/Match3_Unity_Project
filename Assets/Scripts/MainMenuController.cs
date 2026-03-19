@@ -99,7 +99,7 @@ public class MainMenuController : MonoBehaviour
 
     public void PlayGame()
     {
-        PlayClickSound();
+        //PlayClickSound();
         Invoke("LoadGameScene", 0.2f); 
     }
 

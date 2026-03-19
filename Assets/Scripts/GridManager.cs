@@ -7,14 +7,11 @@ public class GridManager : MonoBehaviour
 {
     [Header("UI елементи")]
     [SerializeField] private TextMeshProUGUI scoreText;
-    [SerializeField] private TextMeshProUGUI comboText; 
-    private int _score = 0;
-    private int _comboCount = 0;
-
-    private NodeController _firstSelected;
-    private NodeController _secondSelected;
-    private bool _isProcessing = false;
-
+    [SerializeField] private TextMeshProUGUI comboText;
+    [SerializeField] private TextMeshProUGUI movesText; // Текст для ходів
+    [SerializeField] private GameObject gameOverPanel; // Панель кінця гри
+    [Header("Налаштування гри")]
+    [SerializeField] private int movesLimit = 20;
     [Header("Налаштування сітки")]
     [SerializeField] private GameObject nodePrefab;
     [SerializeField] private int rows = 7;
@@ -28,18 +25,75 @@ public class GridManager : MonoBehaviour
     [SerializeField] private GameObject tileBGPrefab; 
     private GameObject[,] _tileBGs;
     [SerializeField] private GameObject explosionPrefab;
-    [Header("Audio")]
-    [SerializeField] private AudioClip matchSound;
 
+    private int _score = 0;
+    private int _comboCount = 0;
+    private int _movesLeft;
+    private NodeController _firstSelected;
+    private NodeController _secondSelected;
+    private bool _isProcessing = false;
     private NodeController[,] _nodes;
 
+    public enum BoosterMode { None, Hammer, Bomb, Lightning, Arrow }
+    private BoosterMode _currentMode = BoosterMode.None;
+    private HashSet<string> _bonusesEarnedThisMove = new HashSet<string>();
+    public void SetBoosterMode(BoosterMode mode)
+    {
+        _currentMode = mode;
+
+        // Якщо ми вибрали якийсь режим (не None), кажемо менеджеру бустерів підсвітити його
+        if (_currentMode != BoosterMode.None)
+        {
+            BoosterManager.Instance.HighlightBooster(_currentMode.ToString());
+        }
+        else
+        {
+            // Якщо режим скинуто в None, прибираємо виділення з усіх кнопок
+            BoosterManager.Instance.ResetAllBoosters();
+        }
+    }
     void Start()
     {
         if (comboText != null) comboText.gameObject.SetActive(false);
+        if (gameOverPanel != null) gameOverPanel.SetActive(false);
+
+        _movesLeft = movesLimit;
+        UpdateMovesUI();
+
         GenerateLevel();
         CheckForMatches();
     }
+    private void UpdateMovesUI()
+    {
+        if (movesText != null) movesText.text = "Moves: " + _movesLeft;
 
+        if (_movesLeft <= 0)
+        {
+            Debug.Log("Ходи закінчилися! Чекаємо завершення анімацій...");
+            StartCoroutine(WaitAndShowGameOver());
+        }
+    }
+    private System.Collections.IEnumerator WaitAndShowGameOver()
+    {
+        // Чекаємо, поки всі анімації (свапи, падіння) завершаться
+        while (_isProcessing)
+        {
+            yield return null;
+        }
+
+        // Даємо невелику паузу для драматизму
+        yield return new WaitForSeconds(0.5f);
+
+        if (gameOverPanel != null)
+        {
+            Debug.Log("Показуємо GameOverPanel!");
+            gameOverPanel.SetActive(true);
+        }
+        else
+        {
+            Debug.LogWarning("GameOverPanel НЕ ПРИВ'ЯЗАНА в інспекторі!");
+        }
+    }
     void GenerateLevel()
     {
         _nodes = new NodeController[rows, columns];
@@ -74,7 +128,15 @@ public class GridManager : MonoBehaviour
             }
         }
     }
-
+    private void ShowGameOver()
+    {
+        if (gameOverPanel != null) gameOverPanel.SetActive(true);
+    }
+    public void RestartLevel()
+    {
+        if (UIManager.Instance != null) UIManager.Instance.PlayClickSound();
+        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+    }
     private Sprite GetRandomSprite()
     {
         return nodeSprites[Random.Range(0, nodeSprites.Length)];
@@ -101,9 +163,21 @@ public class GridManager : MonoBehaviour
     {
         if (_isProcessing) return;
 
+        // Режим використання бустера
+        if (_currentMode != BoosterMode.None)
+        {
+            _comboCount = 0; // Скидаємо комбо, бо використання магії — це не звичайний хід
+            ExecuteBooster(node);
+            return;
+        }
+
+        // Звичайний ігровий процес
+        if (_movesLeft <= 0) return;
+
         if (_firstSelected == null)
         {
-            _comboCount = 0; // Скидаємо комбо при новому ході
+            _bonusesEarnedThisMove.Clear(); // Новий хід — тепер можна знову заробляти бонуси
+            _comboCount = 0; // Скидаємо комбо для нового ходу
             _firstSelected = node;
             _firstSelected.Select();
         }
@@ -131,12 +205,123 @@ public class GridManager : MonoBehaviour
             }
         }
     }
+    private void DestroyRow(int r)
+    {
+        for (int c = 0; c < columns; c++) DestroyNode(GetNodeAt(r, c));
+    }
 
+    private void DestroyColumn(int c)
+    {
+        for (int r = 0; r < rows; r++) DestroyNode(GetNodeAt(r, c));
+    }
+
+    private void InstantiateExplosion(Vector3 pos, Sprite sprite)
+    {
+        GameObject exp = Instantiate(explosionPrefab, pos, Quaternion.identity);
+        exp.GetComponent<Explosion>().Init(GetColorFromSprite(sprite));
+    }
+    private void DestroyNode(NodeController node)
+    {
+        if (node == null) return;
+
+        // FIX 3: Нараховуємо очки за руйнування бустером
+        _score += 10;
+        UpdateScoreUI();
+
+        InstantiateExplosion(node.transform.position, node.GetSprite());
+        _nodes[node.Row, node.Col] = null;
+        Destroy(node.gameObject);
+    }
+
+    private void DestroyArea(int centerX, int centerY, int range)
+    {
+        for (int r = centerX - range; r <= centerX + range; r++)
+        {
+            for (int c = centerY - range; c <= centerY + range; c++)
+            {
+                NodeController target = GetNodeAt(r, c);
+                if (target != null) DestroyNode(target);
+            }
+        }
+    }
+    public void ExecuteShuffle()
+    {
+        if (_isProcessing) return; // Не заважаємо, якщо щось падає
+
+        if (BoosterManager.Instance.UseBooster("shuffle"))
+        {
+            StartCoroutine(ShuffleRoutine());
+        }
+    }
+    private System.Collections.IEnumerator ShuffleRoutine()
+    {
+        _isProcessing = true;
+
+        // 1. Збираємо всі спрайти, які зараз є на полі
+        List<Sprite> activeSprites = new List<Sprite>();
+        foreach (NodeController node in _nodes)
+        {
+            if (node != null) activeSprites.Add(node.GetSprite());
+        }
+
+        // 2. Перемішуємо список спрайтів (Алгоритм Фішера-Єйтса)
+        for (int i = 0; i < activeSprites.Count; i++)
+        {
+            Sprite temp = activeSprites[i];
+            int randomIndex = Random.Range(i, activeSprites.Count);
+            activeSprites[i] = activeSprites[randomIndex];
+            activeSprites[randomIndex] = temp;
+        }
+
+        // 3. Роздаємо перемішані спрайти назад вузлам
+        int index = 0;
+        foreach (NodeController node in _nodes)
+        {
+            if (node != null)
+            {
+                node.SetSprite(activeSprites[index]);
+                index++;
+            }
+        }
+
+        yield return new WaitForSeconds(0.5f);
+
+        // 4. Після перемішування обов'язково перевіряємо, чи не утворилися нові матчі
+        _isProcessing = false;
+        CheckForMatches();
+    }
+    private void ExecuteBooster(NodeController node)
+    {
+        bool used = false;
+
+        switch (_currentMode)
+        {
+            case BoosterMode.Hammer:
+                if (BoosterManager.Instance.UseBooster("hammer")) { DestroyNode(node); used = true; }
+                break;
+            case BoosterMode.Bomb:
+                if (BoosterManager.Instance.UseBooster("bomb")) { DestroyArea(node.Row, node.Col, 1); used = true; }
+                break;
+            case BoosterMode.Lightning:
+                if (BoosterManager.Instance.UseBooster("lightning")) { DestroyColumn(node.Col); used = true; }
+                break;
+            case BoosterMode.Arrow:
+                if (BoosterManager.Instance.UseBooster("arrow")) { DestroyRow(node.Row); used = true; }
+                break;
+        }
+
+        if (used)
+        {
+            _currentMode = BoosterMode.None;
+            BoosterManager.Instance.ResetAllBoosters(); // Повертаємо кнопкам нормальний розмір
+            StartCoroutine(WaitAndFill());
+        }
+    }
     private void CheckForMatches()
     {
         HashSet<NodeController> matches = new HashSet<NodeController>();
 
-        // Перевірка горизонталей
+        // 1. Перевірка горизонталей
         for (int r = 0; r < rows; r++)
         {
             for (int c = 0; c < columns - 2; c++)
@@ -144,14 +329,37 @@ public class GridManager : MonoBehaviour
                 NodeController n1 = _nodes[r, c];
                 NodeController n2 = _nodes[r, c + 1];
                 NodeController n3 = _nodes[r, c + 2];
+
                 if (n1 && n2 && n3 && n1.GetSprite() == n2.GetSprite() && n2.GetSprite() == n3.GetSprite())
                 {
                     matches.Add(n1); matches.Add(n2); matches.Add(n3);
+
+                    int lineLength = 3;
+                    if (c + 3 < columns && _nodes[r, c + 3] && _nodes[r, c + 3].GetSprite() == n1.GetSprite())
+                    {
+                        matches.Add(_nodes[r, c + 3]); lineLength = 4;
+                        if (c + 4 < columns && _nodes[r, c + 4] && _nodes[r, c + 4].GetSprite() == n1.GetSprite())
+                        {
+                            matches.Add(_nodes[r, c + 4]); lineLength = 5;
+                        }
+                    }
+
+                    // Нарахування бонусів (Arrow або Shuffle)
+                    if (lineLength == 4 && !_bonusesEarnedThisMove.Contains("arrow"))
+                    {
+                        BoosterManager.Instance.AddBooster("arrow");
+                        _bonusesEarnedThisMove.Add("arrow");
+                    }
+                    else if (lineLength >= 5 && !_bonusesEarnedThisMove.Contains("shuffle"))
+                    {
+                        BoosterManager.Instance.AddBooster("shuffle");
+                        _bonusesEarnedThisMove.Add("shuffle");
+                    }
                 }
             }
         }
 
-        // Перевірка вертикалей
+        // 2. Перевірка вертикалей
         for (int c = 0; c < columns; c++)
         {
             for (int r = 0; r < rows - 2; r++)
@@ -159,18 +367,77 @@ public class GridManager : MonoBehaviour
                 NodeController n1 = _nodes[r, c];
                 NodeController n2 = _nodes[r + 1, c];
                 NodeController n3 = _nodes[r + 2, c];
+
                 if (n1 && n2 && n3 && n1.GetSprite() == n2.GetSprite() && n2.GetSprite() == n3.GetSprite())
                 {
                     matches.Add(n1); matches.Add(n2); matches.Add(n3);
+
+                    int lineLength = 3;
+                    if (r + 3 < rows && _nodes[r + 3, c] && _nodes[r + 3, c].GetSprite() == n1.GetSprite())
+                    {
+                        matches.Add(_nodes[r + 3, c]); lineLength = 4;
+                        if (r + 4 < rows && _nodes[r + 4, c] && _nodes[r + 4, c].GetSprite() == n1.GetSprite())
+                        {
+                            matches.Add(_nodes[r + 4, c]); lineLength = 5;
+                        }
+                    }
+
+                    // Нарахування бонусів (Lightning або Shuffle)
+                    if (lineLength == 4 && !_bonusesEarnedThisMove.Contains("lightning"))
+                    {
+                        BoosterManager.Instance.AddBooster("lightning");
+                        _bonusesEarnedThisMove.Add("lightning");
+                    }
+                    else if (lineLength >= 5 && !_bonusesEarnedThisMove.Contains("shuffle"))
+                    {
+                        BoosterManager.Instance.AddBooster("shuffle");
+                        _bonusesEarnedThisMove.Add("shuffle");
+                    }
                 }
             }
         }
 
+        // 3. Перевірка КВАДРАТІВ 2х2 (Бомба)
+        for (int r = 0; r < rows - 1; r++)
+        {
+            for (int c = 0; c < columns - 1; c++)
+            {
+                NodeController n1 = _nodes[r, c];
+                NodeController n2 = _nodes[r + 1, c];
+                NodeController n3 = _nodes[r, c + 1];
+                NodeController n4 = _nodes[r + 1, c + 1];
+
+                if (n1 && n2 && n3 && n4)
+                {
+                    Sprite s = n1.GetSprite();
+                    if (n2.GetSprite() == s && n3.GetSprite() == s && n4.GetSprite() == s)
+                    {
+                        matches.Add(n1); matches.Add(n2); matches.Add(n3); matches.Add(n4);
+                        if (!_bonusesEarnedThisMove.Contains("bomb"))
+                        {
+                            BoosterManager.Instance.AddBooster("bomb");
+                            _bonusesEarnedThisMove.Add("bomb");
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4. Перевірка на комбо для Молотка
+        if (_comboCount >= 3 && !_bonusesEarnedThisMove.Contains("hammer"))
+        {
+            BoosterManager.Instance.AddBooster("hammer");
+            _bonusesEarnedThisMove.Add("hammer");
+        }
+
+        // Логіка видалення
         if (matches.Count > 0)
         {
             _isProcessing = true;
-            PlayMatchSound();
+            AudioManager.Instance.PlayMatch(_comboCount);
+            _comboCount++;
             ShowComboUI();
+
             int basePoints = matches.Count * 10;
             _score += basePoints * _comboCount;
             UpdateScoreUI();
@@ -179,22 +446,13 @@ public class GridManager : MonoBehaviour
             {
                 if (match != null)
                 {
-                    // --- СТВОРЕННЯ ВИБУХУ ЧАСТИНОК ---
                     if (explosionPrefab != null)
                     {
                         GameObject exp = Instantiate(explosionPrefab, match.transform.position, Quaternion.identity);
-
-                        // Отримуємо колір на основі спрайту
                         Color effectColor = GetColorFromSprite(match.GetSprite());
-
-                        // Ініціалізуємо скрипт вибуху
                         Explosion explosionScript = exp.GetComponent<Explosion>();
-                        if (explosionScript != null)
-                        {
-                            explosionScript.Init(effectColor);
-                        }
+                        if (explosionScript != null) explosionScript.Init(effectColor);
                     }
-                    // --------------------------------
 
                     _nodes[match.Row, match.Col] = null;
                     StartCoroutine(ShrinkAndDestroy(match.gameObject));
@@ -206,6 +464,56 @@ public class GridManager : MonoBehaviour
         {
             _isProcessing = false;
         }
+    }
+    public void OnHoverNode(NodeController node, bool isEntering)
+    {
+        if (_currentMode == BoosterMode.None) return;
+
+        List<NodeController> targets = new List<NodeController>();
+
+        // Визначаємо, які вузли підсвітити залежно від режиму
+        switch (_currentMode)
+        {
+            case BoosterMode.Hammer:
+                targets.Add(node);
+                break;
+            case BoosterMode.Bomb:
+                targets = GetAreaNodes(node.Row, node.Col, 1);
+                break;
+            case BoosterMode.Arrow:
+                targets = GetRowNodes(node.Row);
+                break;
+            case BoosterMode.Lightning:
+                targets = GetColumnNodes(node.Col);
+                break;
+        }
+
+        foreach (var target in targets)
+        {
+            if (target != null) target.Highlight(isEntering);
+        }
+    }
+
+    // Допоміжні методи (схожі на ті, що для руйнування, але повертають список)
+    private List<NodeController> GetAreaNodes(int r, int c, int range)
+    {
+        List<NodeController> nodes = new List<NodeController>();
+        for (int i = r - range; i <= r + range; i++)
+            for (int j = c - range; j <= c + range; j++)
+                nodes.Add(GetNodeAt(i, j));
+        return nodes;
+    }
+    private List<NodeController> GetRowNodes(int r)
+    {
+        List<NodeController> nodes = new List<NodeController>();
+        for (int c = 0; c < columns; c++) nodes.Add(GetNodeAt(r, c));
+        return nodes;
+    }
+    private List<NodeController> GetColumnNodes(int c)
+    {
+        List<NodeController> nodes = new List<NodeController>();
+        for (int r = 0; r < rows; r++) nodes.Add(GetNodeAt(r, c));
+        return nodes;
     }
 
     // Допоміжний метод для визначення кольору вибуху
@@ -233,7 +541,10 @@ public class GridManager : MonoBehaviour
         }
         Destroy(node);
     }
-
+    public BoosterMode GetCurrentMode()
+    {
+        return _currentMode;
+    }
     private void ShowComboUI()
     {
         // Показуємо комбо, тільки якщо це вже друга або більше серія вибухів
@@ -297,18 +608,6 @@ public class GridManager : MonoBehaviour
         }
     }
 
-    private void PlayMatchSound()
-    {
-        if (UIManager.Instance != null && matchSound != null)
-        {
-            var source = UIManager.Instance.GetComponent<AudioSource>();
-            float vol = PlayerPrefs.GetFloat("SFXVolume", 0.5f);
-            source.pitch = 1f + (_comboCount * 0.1f);
-            if (source.pitch > 2f) source.pitch = 2f;
-            source.PlayOneShot(matchSound, vol);
-            _comboCount++;
-        }
-    }
     private System.Collections.IEnumerator SwapNodes(NodeController a, NodeController b)
     {
         _isProcessing = true;
@@ -334,6 +633,8 @@ public class GridManager : MonoBehaviour
         }
         else
         {
+            _movesLeft--;
+            UpdateMovesUI();
             CheckForMatches();
         }
     }
@@ -469,5 +770,10 @@ public class GridManager : MonoBehaviour
         return new Vector3(xPos, yPos, 0);
     }
 
-    public void GoToMainMenu() => SceneManager.LoadScene("MainMenu");
+    public void GoToMainMenu()
+    {
+        if (UIManager.Instance != null) UIManager.Instance.PlayClickSound();
+        Invoke("DelayedLoadMenu", 0.15f);
+    }
+    private void DelayedLoadMenu() => SceneManager.LoadScene("MainMenu");
 }
