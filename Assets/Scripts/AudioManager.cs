@@ -21,7 +21,6 @@ public class AudioManager : Singleton<AudioManager>
 
         float vol = PlayerPrefs.GetFloat("SFXVolume", 0.5f);
 
-        // Робимо звук вищим з кожним комбо (як у Candy Crush)
         _sfxSource.pitch = 1f + (combo * 0.1f);
         if (_sfxSource.pitch > 2f) _sfxSource.pitch = 2f;
 
@@ -33,7 +32,7 @@ public class AudioManager : Singleton<AudioManager>
         if (explosionSound == null) return;
 
         float vol = PlayerPrefs.GetFloat("SFXVolume", 0.5f);
-        _sfxSource.pitch = Random.Range(0.9f, 1.1f); // Легкий рандом для живості
+        _sfxSource.pitch = Random.Range(0.9f, 1.1f); 
         _sfxSource.PlayOneShot(explosionSound, vol);
     }
 }

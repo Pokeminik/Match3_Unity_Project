@@ -16,12 +16,10 @@ public class MainMenuController : MonoBehaviour
     {
         if (settingsPanel != null) settingsPanel.SetActive(false);
 
-        // Завантажуємо збережені значення
         float musicVol = PlayerPrefs.GetFloat("MusicVolume", 0.5f);
         float sfxVol = PlayerPrefs.GetFloat("SFXVolume", 0.5f);
         float uiVol = PlayerPrefs.GetFloat("UIVolume", 0.5f);
 
-        // Налаштовуємо слайдери
         if (musicSlider != null)
         {
             musicSlider.value = musicVol;
@@ -38,7 +36,6 @@ public class MainMenuController : MonoBehaviour
             uiSlider.onValueChanged.AddListener(OnUIChanged);
         }
 
-        // ПРИМУСОВО встановлюємо гучність при старті
         ApplyAllVolumes(musicVol, uiVol);
     }
 
@@ -99,7 +96,6 @@ public class MainMenuController : MonoBehaviour
 
     public void PlayGame()
     {
-        //PlayClickSound();
         Invoke("LoadGameScene", 0.2f); 
     }
 

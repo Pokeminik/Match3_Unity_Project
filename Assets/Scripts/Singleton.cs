@@ -1,6 +1,5 @@
 using UnityEngine;
 
-// Цей шаблон дозволяє будь-якому класу стати Singleton
 public class Singleton<T> : MonoBehaviour where T : MonoBehaviour
 {
     private static T _instance;

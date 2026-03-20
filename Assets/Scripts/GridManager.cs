@@ -8,8 +8,8 @@ public class GridManager : MonoBehaviour
     [Header("UI елементи")]
     [SerializeField] private TextMeshProUGUI scoreText;
     [SerializeField] private TextMeshProUGUI comboText;
-    [SerializeField] private TextMeshProUGUI movesText; // Текст для ходів
-    [SerializeField] private GameObject gameOverPanel; // Панель кінця гри
+    [SerializeField] private TextMeshProUGUI movesText;
+    [SerializeField] private GameObject gameOverPanel; 
     [Header("Налаштування гри")]
     [SerializeField] private int movesLimit = 20;
     [Header("Налаштування сітки")]
@@ -41,14 +41,12 @@ public class GridManager : MonoBehaviour
     {
         _currentMode = mode;
 
-        // Якщо ми вибрали якийсь режим (не None), кажемо менеджеру бустерів підсвітити його
         if (_currentMode != BoosterMode.None)
         {
             BoosterManager.Instance.HighlightBooster(_currentMode.ToString());
         }
         else
         {
-            // Якщо режим скинуто в None, прибираємо виділення з усіх кнопок
             BoosterManager.Instance.ResetAllBoosters();
         }
     }
@@ -75,13 +73,11 @@ public class GridManager : MonoBehaviour
     }
     private System.Collections.IEnumerator WaitAndShowGameOver()
     {
-        // Чекаємо, поки всі анімації (свапи, падіння) завершаться
         while (_isProcessing)
         {
             yield return null;
         }
 
-        // Даємо невелику паузу для драматизму
         yield return new WaitForSeconds(0.5f);
 
         if (gameOverPanel != null)
@@ -163,21 +159,20 @@ public class GridManager : MonoBehaviour
     {
         if (_isProcessing) return;
 
-        // Режим використання бустера
         if (_currentMode != BoosterMode.None)
         {
-            _comboCount = 0; // Скидаємо комбо, бо використання магії — це не звичайний хід
+            _comboCount = 0; 
             ExecuteBooster(node);
             return;
         }
 
-        // Звичайний ігровий процес
+
         if (_movesLeft <= 0) return;
 
         if (_firstSelected == null)
         {
-            _bonusesEarnedThisMove.Clear(); // Новий хід — тепер можна знову заробляти бонуси
-            _comboCount = 0; // Скидаємо комбо для нового ходу
+            _bonusesEarnedThisMove.Clear(); 
+            _comboCount = 0;
             _firstSelected = node;
             _firstSelected.Select();
         }
@@ -224,7 +219,6 @@ public class GridManager : MonoBehaviour
     {
         if (node == null) return;
 
-        // FIX 3: Нараховуємо очки за руйнування бустером
         _score += 10;
         UpdateScoreUI();
 
@@ -246,7 +240,7 @@ public class GridManager : MonoBehaviour
     }
     public void ExecuteShuffle()
     {
-        if (_isProcessing) return; // Не заважаємо, якщо щось падає
+        if (_isProcessing) return;
 
         if (BoosterManager.Instance.UseBooster("shuffle"))
         {
@@ -257,14 +251,12 @@ public class GridManager : MonoBehaviour
     {
         _isProcessing = true;
 
-        // 1. Збираємо всі спрайти, які зараз є на полі
         List<Sprite> activeSprites = new List<Sprite>();
         foreach (NodeController node in _nodes)
         {
             if (node != null) activeSprites.Add(node.GetSprite());
         }
 
-        // 2. Перемішуємо список спрайтів (Алгоритм Фішера-Єйтса)
         for (int i = 0; i < activeSprites.Count; i++)
         {
             Sprite temp = activeSprites[i];
@@ -273,7 +265,6 @@ public class GridManager : MonoBehaviour
             activeSprites[randomIndex] = temp;
         }
 
-        // 3. Роздаємо перемішані спрайти назад вузлам
         int index = 0;
         foreach (NodeController node in _nodes)
         {
@@ -286,7 +277,6 @@ public class GridManager : MonoBehaviour
 
         yield return new WaitForSeconds(0.5f);
 
-        // 4. Після перемішування обов'язково перевіряємо, чи не утворилися нові матчі
         _isProcessing = false;
         CheckForMatches();
     }
@@ -313,7 +303,7 @@ public class GridManager : MonoBehaviour
         if (used)
         {
             _currentMode = BoosterMode.None;
-            BoosterManager.Instance.ResetAllBoosters(); // Повертаємо кнопкам нормальний розмір
+            BoosterManager.Instance.ResetAllBoosters(); 
             StartCoroutine(WaitAndFill());
         }
     }
@@ -321,7 +311,6 @@ public class GridManager : MonoBehaviour
     {
         HashSet<NodeController> matches = new HashSet<NodeController>();
 
-        // 1. Перевірка горизонталей
         for (int r = 0; r < rows; r++)
         {
             for (int c = 0; c < columns - 2; c++)
@@ -344,7 +333,6 @@ public class GridManager : MonoBehaviour
                         }
                     }
 
-                    // Нарахування бонусів (Arrow або Shuffle)
                     if (lineLength == 4 && !_bonusesEarnedThisMove.Contains("arrow"))
                     {
                         BoosterManager.Instance.AddBooster("arrow");
@@ -359,7 +347,6 @@ public class GridManager : MonoBehaviour
             }
         }
 
-        // 2. Перевірка вертикалей
         for (int c = 0; c < columns; c++)
         {
             for (int r = 0; r < rows - 2; r++)
@@ -382,7 +369,6 @@ public class GridManager : MonoBehaviour
                         }
                     }
 
-                    // Нарахування бонусів (Lightning або Shuffle)
                     if (lineLength == 4 && !_bonusesEarnedThisMove.Contains("lightning"))
                     {
                         BoosterManager.Instance.AddBooster("lightning");
@@ -397,7 +383,6 @@ public class GridManager : MonoBehaviour
             }
         }
 
-        // 3. Перевірка КВАДРАТІВ 2х2 (Бомба)
         for (int r = 0; r < rows - 1; r++)
         {
             for (int c = 0; c < columns - 1; c++)
@@ -423,14 +408,12 @@ public class GridManager : MonoBehaviour
             }
         }
 
-        // 4. Перевірка на комбо для Молотка
         if (_comboCount >= 3 && !_bonusesEarnedThisMove.Contains("hammer"))
         {
             BoosterManager.Instance.AddBooster("hammer");
             _bonusesEarnedThisMove.Add("hammer");
         }
 
-        // Логіка видалення
         if (matches.Count > 0)
         {
             _isProcessing = true;
@@ -471,7 +454,6 @@ public class GridManager : MonoBehaviour
 
         List<NodeController> targets = new List<NodeController>();
 
-        // Визначаємо, які вузли підсвітити залежно від режиму
         switch (_currentMode)
         {
             case BoosterMode.Hammer:
@@ -493,8 +475,6 @@ public class GridManager : MonoBehaviour
             if (target != null) target.Highlight(isEntering);
         }
     }
-
-    // Допоміжні методи (схожі на ті, що для руйнування, але повертають список)
     private List<NodeController> GetAreaNodes(int r, int c, int range)
     {
         List<NodeController> nodes = new List<NodeController>();
@@ -515,8 +495,6 @@ public class GridManager : MonoBehaviour
         for (int r = 0; r < rows; r++) nodes.Add(GetNodeAt(r, c));
         return nodes;
     }
-
-    // Допоміжний метод для визначення кольору вибуху
     private Color GetColorFromSprite(Sprite sprite)
     {
         if (sprite.name.Contains("apple")) return Color.red;
@@ -547,10 +525,8 @@ public class GridManager : MonoBehaviour
     }
     private void ShowComboUI()
     {
-        // Показуємо комбо, тільки якщо це вже друга або більше серія вибухів
         if (_comboCount > 1 && comboText != null)
         {
-            // Прибираємо (+ 1), тепер буде писати реальне значення комбо
             comboText.text = "COMBO x" + _comboCount;
 
             comboText.gameObject.SetActive(true);
@@ -560,22 +536,19 @@ public class GridManager : MonoBehaviour
     }
     private System.Collections.IEnumerator FadeOutComboText()
     {
-        // Ефект "удару" — текст з'являється великим і зменшується
         comboText.transform.localScale = Vector3.one * 1.5f;
         float elapsed = 0;
         float duration = 0.8f;
 
         while (elapsed < duration)
         {
-            // Плавне зменшення масштабу до нормального
             comboText.transform.localScale = Vector3.Lerp(Vector3.one * 1.5f, Vector3.one, elapsed / duration);
 
-            // Можна додати зникнення (альфа-канал), якщо захочеш пізніше
             elapsed += Time.deltaTime;
             yield return null;
         }
 
-        yield return new WaitForSeconds(0.5f); // Даємо гравцеві помилуватися написом
+        yield return new WaitForSeconds(0.5f); 
         comboText.gameObject.SetActive(false);
     }
 
@@ -705,7 +678,6 @@ public class GridManager : MonoBehaviour
     }
     private void OnValidate()
     {
-        // Перевіряємо, чи гра запущена і чи сітка вже створена
         if (_nodes != null && Application.isPlaying)
         {
             for (int r = 0; r < rows; r++)
@@ -714,7 +686,6 @@ public class GridManager : MonoBehaviour
                 {
                     if (_nodes[r, c] != null)
                     {
-                        // Миттєво переміщуємо фрукт на нову позицію з урахуванням офсету
                         _nodes[r, c].transform.position = GetWorldPosition(r, c);
                     }
                 }
@@ -764,7 +735,6 @@ public class GridManager : MonoBehaviour
 
     private Vector3 GetWorldPosition(int r, int c)
     {
-        // Додаємо gridOffset.x до X та gridOffset.y до Y
         float xPos = ((c - (columns / 2f) + 0.5f) * spacing) + gridOffset.x;
         float yPos = ((r - (rows / 2f) + 0.5f) * spacing) + gridOffset.y;
         return new Vector3(xPos, yPos, 0);

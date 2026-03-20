@@ -30,8 +30,6 @@ public class BoosterManager : Singleton<BoosterManager>
     {
         UpdateBoosterUI();
     }
-
-    // ћетод дл€ додаванн€ зар€ду (викликаЇмо з GridManager)
     public void AddBooster(string type)
     {
         switch (type.ToLower())
@@ -44,8 +42,6 @@ public class BoosterManager : Singleton<BoosterManager>
         }
         UpdateBoosterUI();
     }
-
-    // ћетод дл€ використанн€ (викликатимемо, коли активуЇмо бонус)
     public bool UseBooster(string type)
     {
         switch (type.ToLower())
@@ -58,7 +54,6 @@ public class BoosterManager : Singleton<BoosterManager>
         }
         return false;
     }
-
     public void UpdateBoosterUI()
     {
         UpdateButtonState(hammerBtn, hammerText, hammerCount);
@@ -72,16 +67,12 @@ public class BoosterManager : Singleton<BoosterManager>
         GridManager gm = Object.FindFirstObjectByType<GridManager>();
         if (gm == null) return;
 
-        // ѕерев≥р€Їмо, чи цей бустер ¬∆≈ активний
-        // якщо так Ч скасовуЇмо режим
         if (gm.GetCurrentMode().ToString().ToLower() == type.ToLower())
         {
             gm.SetBoosterMode(GridManager.BoosterMode.None);
             ResetAllBoosters();
             return;
         }
-
-        // якщо н≥ Ч активуЇмо новий
         switch (type.ToLower())
         {
             case "hammer": if (hammerCount > 0) gm.SetBoosterMode(GridManager.BoosterMode.Hammer); break;
@@ -100,7 +91,7 @@ public class BoosterManager : Singleton<BoosterManager>
 
         if (count <= 0)
         {
-            if (img != null) img.color = new Color(0.5f, 0.5f, 0.5f, 1f); // “емно-с≥рий
+            if (img != null) img.color = new Color(0.5f, 0.5f, 0.5f, 1f); 
             btn.interactable = false;
         }
         else
@@ -111,7 +102,7 @@ public class BoosterManager : Singleton<BoosterManager>
     }
     public void HighlightBooster(string type)
     {
-        // —початку скидаЇмо вс≥ кнопки до нормального розм≥ру
+
         ResetAllBoosters();
 
         Button targetBtn = null;
@@ -125,8 +116,8 @@ public class BoosterManager : Singleton<BoosterManager>
 
         if (targetBtn != null)
         {
-            targetBtn.transform.localScale = Vector3.one * 1.2f; // «б≥льшуЇмо
-                                                                 // ћожна додати компонент Outline на кнопку в Unity дл€ п≥дсв≥чуванн€
+            targetBtn.transform.localScale = Vector3.one * 1.2f; 
+                                                                 
         }
     }
     public void ShowShuffleConfirm()
@@ -136,7 +127,7 @@ public class BoosterManager : Singleton<BoosterManager>
     public void ConfirmShuffle()
     {
         GridManager gm = Object.FindFirstObjectByType<GridManager>();
-        gm.ExecuteShuffle(); // ¬икликаЇмо реальний шафл
+        gm.ExecuteShuffle(); 
         shuffleConfirmPanel.SetActive(false);
     }
     public void CancelShuffle() => shuffleConfirmPanel.SetActive(false);
@@ -146,6 +137,5 @@ public class BoosterManager : Singleton<BoosterManager>
         bombBtn.transform.localScale = Vector3.one;
         lightningBtn.transform.localScale = Vector3.one;
         arrowBtn.transform.localScale = Vector3.one;
-        // Shuffle не скидаЇмо тут, бо в≥н миттЇвий
     }
 }
