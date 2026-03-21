@@ -1,7 +1,6 @@
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using static GridManager;
 
 public class BoosterManager : Singleton<BoosterManager>
 {
@@ -11,13 +10,22 @@ public class BoosterManager : Singleton<BoosterManager>
     public int lightningCount = 0;
     public int arrowCount = 0;
     public int shuffleCount = 0;
+
     [SerializeField] private GameObject shuffleConfirmPanel;
-    [Header("UI Елементи (Кнопки)")]
+
+    [Header("Кнопки (для кліків)")]
     [SerializeField] private Button hammerBtn;
     [SerializeField] private Button bombBtn;
     [SerializeField] private Button lightningBtn;
     [SerializeField] private Button arrowBtn;
     [SerializeField] private Button shuffleBtn;
+
+    [Header("Іконки (для анімації та прозорості)")]
+    [SerializeField] private Image hammerIconImg;
+    [SerializeField] private Image bombIconImg;
+    [SerializeField] private Image lightningIconImg;
+    [SerializeField] private Image arrowIconImg;
+    [SerializeField] private Image shuffleIconImg;
 
     [Header("Тексти лічильників")]
     [SerializeField] private TextMeshProUGUI hammerText;
@@ -26,10 +34,29 @@ public class BoosterManager : Singleton<BoosterManager>
     [SerializeField] private TextMeshProUGUI arrowText;
     [SerializeField] private TextMeshProUGUI shuffleText;
 
+    [Header("Налаштування пульсації")]
+    [SerializeField] private float pulseSpeed = 5f;
+    [SerializeField] private float pulseAmount = 0.12f;
+
+    private RectTransform _activeIconTransform;
+    private float _pulseTimer = 0f;
+
     void Start()
     {
         UpdateBoosterUI();
     }
+
+    void Update()
+    {
+        // Анімація "дихання" для вибраної іконки
+        if (_activeIconTransform != null)
+        {
+            _pulseTimer += Time.deltaTime * pulseSpeed;
+            float scale = 1.1f + Mathf.Sin(_pulseTimer) * pulseAmount;
+            _activeIconTransform.localScale = new Vector3(scale, scale, 1f);
+        }
+    }
+
     public void AddBooster(string type)
     {
         switch (type.ToLower())
@@ -42,26 +69,83 @@ public class BoosterManager : Singleton<BoosterManager>
         }
         UpdateBoosterUI();
     }
+
     public bool UseBooster(string type)
     {
+        bool result = false;
         switch (type.ToLower())
         {
-            case "hammer": if (hammerCount > 0) { hammerCount--; UpdateBoosterUI(); return true; } break;
-            case "bomb": if (bombCount > 0) { bombCount--; UpdateBoosterUI(); return true; } break;
-            case "lightning": if (lightningCount > 0) { lightningCount--; UpdateBoosterUI(); return true; } break;
-            case "arrow": if (arrowCount > 0) { arrowCount--; UpdateBoosterUI(); return true; } break;
-            case "shuffle": if (shuffleCount > 0) { shuffleCount--; UpdateBoosterUI(); return true; } break;
+            case "hammer": if (hammerCount > 0) { hammerCount--; result = true; } break;
+            case "bomb": if (bombCount > 0) { bombCount--; result = true; } break;
+            case "lightning": if (lightningCount > 0) { lightningCount--; result = true; } break;
+            case "arrow": if (arrowCount > 0) { arrowCount--; result = true; } break;
+            case "shuffle": if (shuffleCount > 0) { shuffleCount--; result = true; } break;
         }
-        return false;
+        if (result) UpdateBoosterUI();
+        return result;
     }
+
     public void UpdateBoosterUI()
     {
-        UpdateButtonState(hammerBtn, hammerText, hammerCount);
-        UpdateButtonState(bombBtn, bombText, bombCount);
-        UpdateButtonState(lightningBtn, lightningText, lightningCount);
-        UpdateButtonState(arrowBtn, arrowText, arrowCount);
-        UpdateButtonState(shuffleBtn, shuffleText, shuffleCount);
+        UpdateButtonState(hammerBtn, hammerText, hammerIconImg, hammerCount);
+        UpdateButtonState(bombBtn, bombText, bombIconImg, bombCount);
+        UpdateButtonState(lightningBtn, lightningText, lightningIconImg, lightningCount);
+        UpdateButtonState(arrowBtn, arrowText, arrowIconImg, arrowCount);
+        UpdateButtonState(shuffleBtn, shuffleText, shuffleIconImg, shuffleCount);
     }
+
+    private void UpdateButtonState(Button btn, TextMeshProUGUI txt, Image iconImg, int count)
+    {
+        if (btn == null || txt == null || iconImg == null) return;
+
+        txt.text = count.ToString();
+
+        if (count <= 0)
+        {
+            iconImg.color = new Color(0.5f, 0.5f, 0.5f, 0.5f); // Сіра і напівпрозора
+            btn.interactable = false;
+            txt.alpha = 0.5f;
+        }
+        else
+        {
+            iconImg.color = Color.white;
+            btn.interactable = true;
+            txt.alpha = 1f;
+        }
+    }
+
+    public void HighlightBooster(string type)
+    {
+        ResetAllBoosters();
+
+        Image targetImg = null;
+        switch (type.ToLower())
+        {
+            case "hammer": targetImg = hammerIconImg; break;
+            case "bomb": targetImg = bombIconImg; break;
+            case "lightning": targetImg = lightningIconImg; break;
+            case "arrow": targetImg = arrowIconImg; break;
+        }
+
+        if (targetImg != null)
+        {
+            _activeIconTransform = targetImg.rectTransform;
+            _pulseTimer = 0f;
+        }
+    }
+
+    public void ResetAllBoosters()
+    {
+        _activeIconTransform = null;
+
+        // Повертаємо всі іконки до дефолтного масштабу
+        hammerIconImg.rectTransform.localScale = Vector3.one;
+        bombIconImg.rectTransform.localScale = Vector3.one;
+        lightningIconImg.rectTransform.localScale = Vector3.one;
+        arrowIconImg.rectTransform.localScale = Vector3.one;
+        shuffleIconImg.rectTransform.localScale = Vector3.one;
+    }
+
     public void OnBoosterClick(string type)
     {
         GridManager gm = Object.FindFirstObjectByType<GridManager>();
@@ -73,6 +157,7 @@ public class BoosterManager : Singleton<BoosterManager>
             ResetAllBoosters();
             return;
         }
+
         switch (type.ToLower())
         {
             case "hammer": if (hammerCount > 0) gm.SetBoosterMode(GridManager.BoosterMode.Hammer); break;
@@ -82,60 +167,13 @@ public class BoosterManager : Singleton<BoosterManager>
             case "shuffle": if (shuffleCount > 0) ShowShuffleConfirm(); break;
         }
     }
-    private void UpdateButtonState(Button btn, TextMeshProUGUI txt, int count)
-    {
-        if (btn == null || txt == null) return;
 
-        txt.text = count.ToString();
-        Image img = btn.GetComponent<Image>();
-
-        if (count <= 0)
-        {
-            if (img != null) img.color = new Color(0.5f, 0.5f, 0.5f, 1f); 
-            btn.interactable = false;
-        }
-        else
-        {
-            if (img != null) img.color = Color.white;
-            btn.interactable = true;
-        }
-    }
-    public void HighlightBooster(string type)
-    {
-
-        ResetAllBoosters();
-
-        Button targetBtn = null;
-        switch (type.ToLower())
-        {
-            case "hammer": targetBtn = hammerBtn; break;
-            case "bomb": targetBtn = bombBtn; break;
-            case "lightning": targetBtn = lightningBtn; break;
-            case "arrow": targetBtn = arrowBtn; break;
-        }
-
-        if (targetBtn != null)
-        {
-            targetBtn.transform.localScale = Vector3.one * 1.2f; 
-                                                                 
-        }
-    }
-    public void ShowShuffleConfirm()
-    {
-        if (shuffleCount > 0) shuffleConfirmPanel.SetActive(true);
-    }
+    public void ShowShuffleConfirm() { if (shuffleCount > 0) shuffleConfirmPanel.SetActive(true); }
     public void ConfirmShuffle()
     {
         GridManager gm = Object.FindFirstObjectByType<GridManager>();
-        gm.ExecuteShuffle(); 
+        gm.ExecuteShuffle();
         shuffleConfirmPanel.SetActive(false);
     }
     public void CancelShuffle() => shuffleConfirmPanel.SetActive(false);
-    public void ResetAllBoosters()
-    {
-        hammerBtn.transform.localScale = Vector3.one;
-        bombBtn.transform.localScale = Vector3.one;
-        lightningBtn.transform.localScale = Vector3.one;
-        arrowBtn.transform.localScale = Vector3.one;
-    }
 }

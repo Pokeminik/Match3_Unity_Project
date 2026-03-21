@@ -713,10 +713,26 @@ public class GridManager : MonoBehaviour
             {
                 if (_nodes[r, c] == null) continue;
                 Sprite cur = _nodes[r, c].GetSprite();
+
+                // 1. Перевірка горизонталі 
                 if (c < columns - 2 && _nodes[r, c + 1] && _nodes[r, c + 2] &&
                     _nodes[r, c + 1].GetSprite() == cur && _nodes[r, c + 2].GetSprite() == cur) return true;
+
+                // 2. Перевірка вертикалі 
                 if (r < rows - 2 && _nodes[r + 1, c] && _nodes[r + 2, c] &&
                     _nodes[r + 1, c].GetSprite() == cur && _nodes[r + 2, c].GetSprite() == cur) return true;
+
+                // 3. Квадрат 2x2 
+                if (r < rows - 1 && c < columns - 1)
+                {
+                    NodeController n2 = _nodes[r + 1, c];
+                    NodeController n3 = _nodes[r, c + 1];
+                    NodeController n4 = _nodes[r + 1, c + 1];
+
+                    if (n2 && n3 && n4 &&
+                        n2.GetSprite() == cur && n3.GetSprite() == cur && n4.GetSprite() == cur)
+                        return true;
+                }
             }
         }
         return false;
