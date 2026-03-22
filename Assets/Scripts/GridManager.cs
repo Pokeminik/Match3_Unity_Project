@@ -9,7 +9,8 @@ public class GridManager : MonoBehaviour
     [SerializeField] private TextMeshProUGUI scoreText;
     [SerializeField] private TextMeshProUGUI comboText;
     [SerializeField] private TextMeshProUGUI movesText;
-    [SerializeField] private GameObject gameOverPanel; 
+    [SerializeField] private GameObject gameOverPanel;
+
     [Header("Налаштування гри")]
     [SerializeField] private int movesLimit = 20;
     [Header("Налаштування сітки")]
@@ -40,24 +41,16 @@ public class GridManager : MonoBehaviour
     public void SetBoosterMode(BoosterMode mode)
     {
         _currentMode = mode;
-
-        if (_currentMode != BoosterMode.None)
-        {
-            BoosterManager.Instance.HighlightBooster(_currentMode.ToString());
-        }
-        else
-        {
-            BoosterManager.Instance.ResetAllBoosters();
-        }
+        if (_currentMode != BoosterMode.None) BoosterManager.Instance.HighlightBooster(_currentMode.ToString());
+        else BoosterManager.Instance.ResetAllBoosters();
     }
+    public BoosterMode GetCurrentMode() => _currentMode;
     void Start()
     {
-        if (comboText != null) comboText.gameObject.SetActive(false);
-        if (gameOverPanel != null) gameOverPanel.SetActive(false);
-
+        if (comboText) comboText.gameObject.SetActive(false);
+        if (gameOverPanel) gameOverPanel.SetActive(false);
         _movesLeft = movesLimit;
         UpdateMovesUI();
-
         GenerateLevel();
         CheckForMatches();
     }
@@ -157,21 +150,20 @@ public class GridManager : MonoBehaviour
 
     public void OnNodeClick(NodeController node)
     {
-        if (_isProcessing) return;
+        if (_isProcessing || BoosterManager.Instance.IsShufflePanelActive()) return;
 
         if (_currentMode != BoosterMode.None)
         {
-            _comboCount = 0; 
+            _comboCount = 0;
             ExecuteBooster(node);
             return;
         }
-
 
         if (_movesLeft <= 0) return;
 
         if (_firstSelected == null)
         {
-            _bonusesEarnedThisMove.Clear(); 
+            _bonusesEarnedThisMove.Clear();
             _comboCount = 0;
             _firstSelected = node;
             _firstSelected.Select();
@@ -519,10 +511,6 @@ public class GridManager : MonoBehaviour
         }
         Destroy(node);
     }
-    public BoosterMode GetCurrentMode()
-    {
-        return _currentMode;
-    }
     private void ShowComboUI()
     {
         if (_comboCount > 1 && comboText != null)
@@ -552,13 +540,14 @@ public class GridManager : MonoBehaviour
         comboText.gameObject.SetActive(false);
     }
 
-    private void UpdateScoreUI()
+    public void UpdateScoreUI()
     {
-        if (scoreText != null)
+        if (scoreText != null) scoreText.text = "Score: " + _score; // Це твій старий текст (якщо лишив)
+
+        // ОСНОВНЕ: Оновлюємо нашу нову шкалу
+        if (LevelProgressUI.Instance != null)
         {
-            scoreText.text = "Score: " + _score;
-            StopCoroutine("PunchScoreText");
-            StartCoroutine(PunchScoreText());
+            LevelProgressUI.Instance.UpdateProgress(_score);
         }
     }
 
@@ -714,25 +703,14 @@ public class GridManager : MonoBehaviour
                 if (_nodes[r, c] == null) continue;
                 Sprite cur = _nodes[r, c].GetSprite();
 
-                // 1. Перевірка горизонталі 
                 if (c < columns - 2 && _nodes[r, c + 1] && _nodes[r, c + 2] &&
                     _nodes[r, c + 1].GetSprite() == cur && _nodes[r, c + 2].GetSprite() == cur) return true;
 
-                // 2. Перевірка вертикалі 
                 if (r < rows - 2 && _nodes[r + 1, c] && _nodes[r + 2, c] &&
                     _nodes[r + 1, c].GetSprite() == cur && _nodes[r + 2, c].GetSprite() == cur) return true;
 
-                // 3. Квадрат 2x2 
-                if (r < rows - 1 && c < columns - 1)
-                {
-                    NodeController n2 = _nodes[r + 1, c];
-                    NodeController n3 = _nodes[r, c + 1];
-                    NodeController n4 = _nodes[r + 1, c + 1];
-
-                    if (n2 && n3 && n4 &&
-                        n2.GetSprite() == cur && n3.GetSprite() == cur && n4.GetSprite() == cur)
-                        return true;
-                }
+                if (r < rows - 1 && c < columns - 1 && _nodes[r + 1, c] && _nodes[r, c + 1] && _nodes[r + 1, c + 1] &&
+                    _nodes[r + 1, c].GetSprite() == cur && _nodes[r, c + 1].GetSprite() == cur && _nodes[r + 1, c + 1].GetSprite() == cur) return true;
             }
         }
         return false;
@@ -762,4 +740,17 @@ public class GridManager : MonoBehaviour
         Invoke("DelayedLoadMenu", 0.15f);
     }
     private void DelayedLoadMenu() => SceneManager.LoadScene("MainMenu");
+    public void ClearAllHighlights()
+    {
+        for (int r = 0; r < rows; r++)
+        {
+            for (int c = 0; c < columns; c++)
+            {
+                if (_nodes[r, c] != null)
+                {
+                    _nodes[r, c].Highlight(false);
+                }
+            }
+        }
+    }
 }

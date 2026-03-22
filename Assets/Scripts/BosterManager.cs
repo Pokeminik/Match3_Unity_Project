@@ -13,42 +13,38 @@ public class BoosterManager : Singleton<BoosterManager>
 
     [SerializeField] private GameObject shuffleConfirmPanel;
 
-    [Header("Кнопки (для кліків)")]
+    [Header("Кнопки")]
     [SerializeField] private Button hammerBtn;
     [SerializeField] private Button bombBtn;
     [SerializeField] private Button lightningBtn;
     [SerializeField] private Button arrowBtn;
     [SerializeField] private Button shuffleBtn;
 
-    [Header("Іконки (для анімації та прозорості)")]
+    [Header("Іконки (Image компоненти)")]
     [SerializeField] private Image hammerIconImg;
     [SerializeField] private Image bombIconImg;
     [SerializeField] private Image lightningIconImg;
     [SerializeField] private Image arrowIconImg;
     [SerializeField] private Image shuffleIconImg;
 
-    [Header("Тексти лічильників")]
+    [Header("Тексти")]
     [SerializeField] private TextMeshProUGUI hammerText;
     [SerializeField] private TextMeshProUGUI bombText;
     [SerializeField] private TextMeshProUGUI lightningText;
     [SerializeField] private TextMeshProUGUI arrowText;
     [SerializeField] private TextMeshProUGUI shuffleText;
 
-    [Header("Налаштування пульсації")]
+    [Header("Пульсація")]
     [SerializeField] private float pulseSpeed = 5f;
     [SerializeField] private float pulseAmount = 0.12f;
 
     private RectTransform _activeIconTransform;
     private float _pulseTimer = 0f;
 
-    void Start()
-    {
-        UpdateBoosterUI();
-    }
+    void Start() => UpdateBoosterUI();
 
     void Update()
     {
-        // Анімація "дихання" для вибраної іконки
         if (_activeIconTransform != null)
         {
             _pulseTimer += Time.deltaTime * pulseSpeed;
@@ -56,6 +52,8 @@ public class BoosterManager : Singleton<BoosterManager>
             _activeIconTransform.localScale = new Vector3(scale, scale, 1f);
         }
     }
+
+    public bool IsShufflePanelActive() => shuffleConfirmPanel != null && shuffleConfirmPanel.activeSelf;
 
     public void AddBooster(string type)
     {
@@ -87,69 +85,49 @@ public class BoosterManager : Singleton<BoosterManager>
 
     public void UpdateBoosterUI()
     {
-        UpdateButtonState(hammerBtn, hammerText, hammerIconImg, hammerCount);
-        UpdateButtonState(bombBtn, bombText, bombIconImg, bombCount);
-        UpdateButtonState(lightningBtn, lightningText, lightningIconImg, lightningCount);
-        UpdateButtonState(arrowBtn, arrowText, arrowIconImg, arrowCount);
-        UpdateButtonState(shuffleBtn, shuffleText, shuffleIconImg, shuffleCount);
+        UpdateState(hammerBtn, hammerText, hammerIconImg, hammerCount);
+        UpdateState(bombBtn, bombText, bombIconImg, bombCount);
+        UpdateState(lightningBtn, lightningText, lightningIconImg, lightningCount);
+        UpdateState(arrowBtn, arrowText, arrowIconImg, arrowCount);
+        UpdateState(shuffleBtn, shuffleText, shuffleIconImg, shuffleCount);
     }
 
-    private void UpdateButtonState(Button btn, TextMeshProUGUI txt, Image iconImg, int count)
+    private void UpdateState(Button b, TextMeshProUGUI t, Image i, int c)
     {
-        if (btn == null || txt == null || iconImg == null) return;
-
-        txt.text = count.ToString();
-
-        if (count <= 0)
-        {
-            iconImg.color = new Color(0.5f, 0.5f, 0.5f, 0.5f); // Сіра і напівпрозора
-            btn.interactable = false;
-            txt.alpha = 0.5f;
-        }
-        else
-        {
-            iconImg.color = Color.white;
-            btn.interactable = true;
-            txt.alpha = 1f;
-        }
+        if (!b || !t || !i) return;
+        t.text = c.ToString();
+        i.color = (c <= 0) ? new Color(0.5f, 0.5f, 0.5f, 0.5f) : Color.white;
+        b.interactable = c > 0;
+        t.alpha = (c <= 0) ? 0.5f : 1f;
     }
 
     public void HighlightBooster(string type)
     {
         ResetAllBoosters();
-
-        Image targetImg = null;
+        Image target = null;
         switch (type.ToLower())
         {
-            case "hammer": targetImg = hammerIconImg; break;
-            case "bomb": targetImg = bombIconImg; break;
-            case "lightning": targetImg = lightningIconImg; break;
-            case "arrow": targetImg = arrowIconImg; break;
+            case "hammer": target = hammerIconImg; break;
+            case "bomb": target = bombIconImg; break;
+            case "lightning": target = lightningIconImg; break;
+            case "arrow": target = arrowIconImg; break;
         }
-
-        if (targetImg != null)
-        {
-            _activeIconTransform = targetImg.rectTransform;
-            _pulseTimer = 0f;
-        }
+        if (target) { _activeIconTransform = target.rectTransform; _pulseTimer = 0f; }
     }
 
     public void ResetAllBoosters()
     {
         _activeIconTransform = null;
-
-        // Повертаємо всі іконки до дефолтного масштабу
         hammerIconImg.rectTransform.localScale = Vector3.one;
         bombIconImg.rectTransform.localScale = Vector3.one;
         lightningIconImg.rectTransform.localScale = Vector3.one;
         arrowIconImg.rectTransform.localScale = Vector3.one;
-        shuffleIconImg.rectTransform.localScale = Vector3.one;
     }
 
     public void OnBoosterClick(string type)
     {
         GridManager gm = Object.FindFirstObjectByType<GridManager>();
-        if (gm == null) return;
+        if (!gm || IsShufflePanelActive()) return;
 
         if (gm.GetCurrentMode().ToString().ToLower() == type.ToLower())
         {
@@ -168,11 +146,30 @@ public class BoosterManager : Singleton<BoosterManager>
         }
     }
 
-    public void ShowShuffleConfirm() { if (shuffleCount > 0) shuffleConfirmPanel.SetActive(true); }
+    public void ShowShuffleConfirm()
+    {
+        if (shuffleCount > 0)
+        {
+            // 1. Знаходимо GridManager
+            GridManager gm = Object.FindFirstObjectByType<GridManager>();
+
+            if (gm != null)
+            {
+                // 2. Примусово вимикаємо режим будь-якого іншого бустера
+                gm.SetBoosterMode(GridManager.BoosterMode.None);
+
+                // 3. Очищаємо підсвічування фруктів на полі (метод додамо нижче)
+                gm.ClearAllHighlights();
+            }
+
+            // 4. Тільки після цього показуємо панель
+            shuffleConfirmPanel.SetActive(true);
+        }
+    }
     public void ConfirmShuffle()
     {
         GridManager gm = Object.FindFirstObjectByType<GridManager>();
-        gm.ExecuteShuffle();
+        if (gm) gm.ExecuteShuffle();
         shuffleConfirmPanel.SetActive(false);
     }
     public void CancelShuffle() => shuffleConfirmPanel.SetActive(false);
