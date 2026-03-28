@@ -299,82 +299,136 @@ public class GridManager : MonoBehaviour
             StartCoroutine(WaitAndFill());
         }
     }
+
     private void CheckForMatches()
     {
         HashSet<NodeController> matches = new HashSet<NodeController>();
+        _bonusesEarnedThisMove.Clear();
 
-        for (int r = 0; r < rows; r++)
+        // 1. Знаходимо всі лінії (горизонтальні та вертикальні)
+        var horizontalLines = FindLines(true);
+        var verticalLines = FindLines(false);
+
+        // 2. Перевіряємо на перетини (T- та L-подібні) -> Бомба
+        CheckForIntersections(horizontalLines, verticalLines, matches);
+
+        // 3. Обробляємо горизонтальні лінії -> Стріла / Shuffle
+        ProcessLines(horizontalLines, true, matches);
+
+        // 4. Обробляємо вертикальні лінії -> Блискавка / Shuffle
+        ProcessLines(verticalLines, false, matches);
+
+        // 5. Перевірка на квадрати 2x2 -> Бомба
+        CheckForSquareMatches(matches);
+
+        // 6. Перевірка на комбо -> Молоток
+        CheckForComboHammer(matches);
+
+        // 7. Очищення, якщо щось знайшли
+        if (matches.Count > 0)
         {
-            for (int c = 0; c < columns - 2; c++)
+            ExecuteMatchClearing(matches);
+        }
+        else
+        {
+            _isProcessing = false;
+        }
+    }
+    private List<List<NodeController>> FindLines(bool horizontal)
+    {
+        List<List<NodeController>> lines = new List<List<NodeController>>();
+        int outer = horizontal ? rows : columns;
+        int inner = horizontal ? columns : rows;
+
+        for (int i = 0; i < outer; i++)
+        {
+            for (int j = 0; j < inner - 2; j++)
             {
-                NodeController n1 = _nodes[r, c];
-                NodeController n2 = _nodes[r, c + 1];
-                NodeController n3 = _nodes[r, c + 2];
+                NodeController n1 = horizontal ? _nodes[i, j] : _nodes[j, i];
+                if (n1 == null) continue;
 
-                if (n1 && n2 && n3 && n1.GetSprite() == n2.GetSprite() && n2.GetSprite() == n3.GetSprite())
+                List<NodeController> currentLine = new List<NodeController> { n1 };
+                Sprite s = n1.GetSprite();
+
+                for (int k = j + 1; k < inner; k++)
                 {
-                    matches.Add(n1); matches.Add(n2); matches.Add(n3);
+                    NodeController next = horizontal ? _nodes[i, k] : _nodes[k, i];
+                    if (next && next.GetSprite() == s)
+                    {
+                        currentLine.Add(next);
+                    }
+                    else break;
+                }
 
-                    int lineLength = 3;
-                    if (c + 3 < columns && _nodes[r, c + 3] && _nodes[r, c + 3].GetSprite() == n1.GetSprite())
-                    {
-                        matches.Add(_nodes[r, c + 3]); lineLength = 4;
-                        if (c + 4 < columns && _nodes[r, c + 4] && _nodes[r, c + 4].GetSprite() == n1.GetSprite())
-                        {
-                            matches.Add(_nodes[r, c + 4]); lineLength = 5;
-                        }
-                    }
-
-                    if (lineLength == 4 && !_bonusesEarnedThisMove.Contains("arrow"))
-                    {
-                        BoosterManager.Instance.AddBooster("arrow");
-                        _bonusesEarnedThisMove.Add("arrow");
-                    }
-                    else if (lineLength >= 5 && !_bonusesEarnedThisMove.Contains("shuffle"))
-                    {
-                        BoosterManager.Instance.AddBooster("shuffle");
-                        _bonusesEarnedThisMove.Add("shuffle");
-                    }
+                if (currentLine.Count >= 3)
+                {
+                    lines.Add(currentLine);
+                    j += currentLine.Count - 1;
                 }
             }
         }
-
-        for (int c = 0; c < columns; c++)
+        return lines;
+    }
+    private void CheckForIntersections(List<List<NodeController>> hLines, List<List<NodeController>> vLines, HashSet<NodeController> matches)
+    {
+        foreach (var hLine in hLines)
         {
-            for (int r = 0; r < rows - 2; r++)
+            foreach (var vLine in vLines)
             {
-                NodeController n1 = _nodes[r, c];
-                NodeController n2 = _nodes[r + 1, c];
-                NodeController n3 = _nodes[r + 2, c];
+                NodeController intersectionNode = null;
+                foreach (var node in hLine) { if (vLine.Contains(node)) { intersectionNode = node; break; } }
 
-                if (n1 && n2 && n3 && n1.GetSprite() == n2.GetSprite() && n2.GetSprite() == n3.GetSprite())
+                if (intersectionNode != null && !_bonusesEarnedThisMove.Contains("bomb"))
                 {
-                    matches.Add(n1); matches.Add(n2); matches.Add(n3);
+                    // ТОЧНИЙ ЦЕНТР ФІГУРИ:
+                    // Збираємо всі унікальні ноди обох ліній, щоб знайти їх спільний центр
+                    HashSet<NodeController> combined = new HashSet<NodeController>(hLine);
+                    combined.UnionWith(vLine);
 
-                    int lineLength = 3;
-                    if (r + 3 < rows && _nodes[r + 3, c] && _nodes[r + 3, c].GetSprite() == n1.GetSprite())
-                    {
-                        matches.Add(_nodes[r + 3, c]); lineLength = 4;
-                        if (r + 4 < rows && _nodes[r + 4, c] && _nodes[r + 4, c].GetSprite() == n1.GetSprite())
-                        {
-                            matches.Add(_nodes[r + 4, c]); lineLength = 5;
-                        }
-                    }
+                    Vector3 averageCenter = Vector3.zero;
+                    foreach (var n in combined) averageCenter += n.transform.position;
+                    averageCenter /= combined.Count;
 
-                    if (lineLength == 4 && !_bonusesEarnedThisMove.Contains("lightning"))
-                    {
-                        BoosterManager.Instance.AddBooster("lightning");
-                        _bonusesEarnedThisMove.Add("lightning");
-                    }
-                    else if (lineLength >= 5 && !_bonusesEarnedThisMove.Contains("shuffle"))
-                    {
-                        BoosterManager.Instance.AddBooster("shuffle");
-                        _bonusesEarnedThisMove.Add("shuffle");
-                    }
+                    BoosterManager.Instance.SpawnFlyingBooster(1, averageCenter);
+                    _bonusesEarnedThisMove.Add("bomb");
+
+                    foreach (var n in combined) matches.Add(n);
                 }
             }
         }
+    }
+    private void ProcessLines(List<List<NodeController>> lines, bool isHorizontal, HashSet<NodeController> matches)
+    {
+        foreach (var line in lines)
+        {
+            foreach (var node in line) matches.Add(node);
 
+            // ОБЧИСЛЮЄМО ЦЕНТР ЛІНІЇ
+            // Беремо позицію першої фішки та останньої і ділимо навпіл
+            Vector3 lineCenter = (line[0].transform.position + line[line.Count - 1].transform.position) / 2f;
+
+            if (line.Count == 4)
+            {
+                string bonusType = isHorizontal ? "arrow" : "lightning";
+                int index = isHorizontal ? 2 : 3;
+
+                if (!_bonusesEarnedThisMove.Contains(bonusType))
+                {
+                    // ТЕПЕР ВИКОРИСТОВУЄМО lineCenter
+                    BoosterManager.Instance.SpawnFlyingBooster(index, lineCenter);
+                    _bonusesEarnedThisMove.Add(bonusType);
+                }
+            }
+            else if (line.Count >= 5 && !_bonusesEarnedThisMove.Contains("shuffle"))
+            {
+                // ТЕПЕР ВИКОРИСТОВУЄМО lineCenter
+                BoosterManager.Instance.SpawnFlyingBooster(4, lineCenter);
+                _bonusesEarnedThisMove.Add("shuffle");
+            }
+        }
+    }
+    private void CheckForSquareMatches(HashSet<NodeController> matches)
+    {
         for (int r = 0; r < rows - 1; r++)
         {
             for (int c = 0; c < columns - 1; c++)
@@ -389,56 +443,63 @@ public class GridManager : MonoBehaviour
                     Sprite s = n1.GetSprite();
                     if (n2.GetSprite() == s && n3.GetSprite() == s && n4.GetSprite() == s)
                     {
-                        matches.Add(n1); matches.Add(n2); matches.Add(n3); matches.Add(n4);
+                        matches.Add(n1); matches.Add(n2);
+                        matches.Add(n3); matches.Add(n4);
+
                         if (!_bonusesEarnedThisMove.Contains("bomb"))
                         {
-                            BoosterManager.Instance.AddBooster("bomb");
+                            // ТОЧНИЙ ЦЕНТР: середина між верхнім лівим та нижнім правим кутами
+                            Vector3 squareCenter = (n1.transform.position + n4.transform.position) / 2f;
+
+                            BoosterManager.Instance.SpawnFlyingBooster(1, squareCenter);
                             _bonusesEarnedThisMove.Add("bomb");
                         }
                     }
                 }
             }
         }
-
+    }
+    private void CheckForComboHammer(HashSet<NodeController> matches)
+    {
         if (_comboCount >= 3 && !_bonusesEarnedThisMove.Contains("hammer"))
         {
-            BoosterManager.Instance.AddBooster("hammer");
+            if (matches.Count == 0) return;
+
+            // ТОЧНИЙ ЦЕНТР КОМБО:
+            // Молоток вилетить з геометричного центру ВСІХ знищених за цей хід фішок
+            Vector3 comboCenter = Vector3.zero;
+            foreach (var m in matches) comboCenter += m.transform.position;
+            comboCenter /= matches.Count;
+
+            BoosterManager.Instance.SpawnFlyingBooster(0, comboCenter);
             _bonusesEarnedThisMove.Add("hammer");
         }
+    }
+    private void ExecuteMatchClearing(HashSet<NodeController> matches)
+    {
+        _isProcessing = true;
+        AudioManager.Instance.PlayMatch(_comboCount);
+        _comboCount++;
+        ShowComboUI();
 
-        if (matches.Count > 0)
+        _score += matches.Count * 10 * _comboCount;
+        UpdateScoreUI();
+
+        foreach (var match in matches)
         {
-            _isProcessing = true;
-            AudioManager.Instance.PlayMatch(_comboCount);
-            _comboCount++;
-            ShowComboUI();
+            if (match == null) continue;
 
-            int basePoints = matches.Count * 10;
-            _score += basePoints * _comboCount;
-            UpdateScoreUI();
-
-            foreach (var match in matches)
+            // Спавн ефекту вибуху
+            if (explosionPrefab != null)
             {
-                if (match != null)
-                {
-                    if (explosionPrefab != null)
-                    {
-                        GameObject exp = Instantiate(explosionPrefab, match.transform.position, Quaternion.identity);
-                        Color effectColor = GetColorFromSprite(match.GetSprite());
-                        Explosion explosionScript = exp.GetComponent<Explosion>();
-                        if (explosionScript != null) explosionScript.Init(effectColor);
-                    }
-
-                    _nodes[match.Row, match.Col] = null;
-                    StartCoroutine(ShrinkAndDestroy(match.gameObject));
-                }
+                GameObject exp = Instantiate(explosionPrefab, match.transform.position, Quaternion.identity);
+                exp.GetComponent<Explosion>()?.Init(GetColorFromSprite(match.GetSprite()));
             }
-            StartCoroutine(WaitAndFill());
+
+            _nodes[match.Row, match.Col] = null;
+            StartCoroutine(ShrinkAndDestroy(match.gameObject));
         }
-        else
-        {
-            _isProcessing = false;
-        }
+        StartCoroutine(WaitAndFill());
     }
     public void OnHoverNode(NodeController node, bool isEntering)
     {
@@ -751,6 +812,19 @@ public class GridManager : MonoBehaviour
                     _nodes[r, c].Highlight(false);
                 }
             }
+        }
+    }
+    private void TriggerBoosterFlight(HashSet<NodeController> matchNodes, int boosterIndex)
+    {
+        // Рахуємо центр вибуху
+        Vector3 centerPos = Vector2.zero;
+        foreach (var node in matchNodes) centerPos += node.transform.position;
+        centerPos /= matchNodes.Count;
+
+        // Запускаємо політ (0-hammer, 1-bomb, 2-arrow, 3-lightning, 4-shuffle)
+        if (BoosterManager.Instance != null)
+        {
+            BoosterManager.Instance.SpawnFlyingBooster(boosterIndex, centerPos);
         }
     }
 }

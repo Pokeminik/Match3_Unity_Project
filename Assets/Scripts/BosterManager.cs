@@ -1,6 +1,7 @@
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using System.Collections;
 
 public class BoosterManager : Singleton<BoosterManager>
 {
@@ -38,8 +39,14 @@ public class BoosterManager : Singleton<BoosterManager>
     [SerializeField] private float pulseSpeed = 5f;
     [SerializeField] private float pulseAmount = 0.12f;
 
+    [Header("Flight Settings")]
+    [SerializeField] private GameObject flyingBoosterPrefab;
+    [SerializeField] private RectTransform[] boosterButtonsTransforms;
+    [SerializeField] private Sprite[] boosterSprites; // Ќќ¬≈: сюди перет€гнемо картинки
+
     private RectTransform _activeIconTransform;
     private float _pulseTimer = 0f;
+    private string[] boosterTypes = { "hammer", "bomb", "arrow", "lightning", "shuffle" };
 
     void Start() => UpdateBoosterUI();
 
@@ -173,4 +180,92 @@ public class BoosterManager : Singleton<BoosterManager>
         shuffleConfirmPanel.SetActive(false);
     }
     public void CancelShuffle() => shuffleConfirmPanel.SetActive(false);
+    public void SpawnFlyingBooster(int boosterType, Vector3 spawnWorldPos)
+    {
+        // Ќќ¬≈: ѕерев≥рка л≥м≥ту. якщо вже Ї 3 штуки Ч пол≥т не починаЇмо.
+        if (!CanAddMoreBoosters(boosterType))
+        {
+            Debug.Log($"≤нвентар дл€ бустера {boosterType} повний, пол≥т скасовано.");
+            return;
+        }
+        // 1. ЎукаЇмо Canvas б≥льш над≥йним способом
+        Canvas rootCanvas = GetComponentInParent<Canvas>();
+        if (rootCanvas == null) rootCanvas = Object.FindFirstObjectByType<Canvas>();
+
+        // —творюЇмо об'Їкт
+        GameObject go = Instantiate(flyingBoosterPrefab, rootCanvas.transform);
+        FlyingBooster flyer = go.GetComponent<FlyingBooster>();
+
+        // ѕризначаЇмо спрайт
+        Image img = go.GetComponent<Image>();
+        if (img != null && boosterType < boosterSprites.Length && boosterSprites[boosterType] != null)
+        {
+            img.sprite = boosterSprites[boosterType];
+        }
+
+        // «апускаЇмо пол≥т
+        Vector3 targetPos = boosterButtonsTransforms[boosterType].position;
+        flyer.StartFlight(spawnWorldPos, targetPos, () => {
+            string[] types = { "hammer", "bomb", "arrow", "lightning", "shuffle" };
+            AddBooster(types[boosterType]);
+            if (AudioManager.Instance != null) AudioManager.Instance.PlayBoosterCollect();
+            RectTransform buttonRect = boosterButtonsTransforms[boosterType];
+            Transform iconTransform = buttonRect.Find("Icon");
+            if (iconTransform != null)
+            {
+                // якщо знайшли Ч пульсуЇ т≥льки ≥конка
+                RectTransform iconRect = iconTransform.GetComponent<RectTransform>();
+                StartCoroutine(PunchButton(iconRect));
+            }
+            else
+            {
+                // якщо забув назвати об'Їкт "Icon", пульсуЇ вс€ кнопка ≥ пише попередженн€
+                Debug.LogWarning($"[BoosterManager] Ќе знайдено об'Їкт 'Icon' у {buttonRect.name}. ѕерев≥р назву в Hierarchy.");
+                StartCoroutine(PunchButton(buttonRect));
+            }
+        });
+    }
+    private System.Collections.IEnumerator ResetButtonScale(RectTransform rect)
+    {
+        yield return new WaitForSeconds(0.1f);
+        rect.localScale = Vector3.one;
+    }
+    private bool CanAddMoreBoosters(int typeIndex)
+    {
+        // ѕерев≥р€Їмо за ≥ндексом (0-hammer, 1-bomb, 2-arrow, 3-lightning, 4-shuffle)
+        switch (typeIndex)
+        {
+            case 0: return hammerCount < 3;
+            case 1: return bombCount < 3;
+            case 2: return arrowCount < 3;
+            case 3: return lightningCount < 3;
+            case 4: return shuffleCount < 3;
+            default: return false;
+        }
+    }
+    private IEnumerator PunchButton(RectTransform buttonRect)
+    {
+        float elapsed = 0;
+        float duration = 0.2f;
+        Vector3 startScale = Vector3.one;
+        Vector3 punchScale = Vector3.one * 1.3f; // «б≥льшуЇмо на 30%
+
+        // Ўвидко зб≥льшуЇмо
+        while (elapsed < duration / 2)
+        {
+            elapsed += Time.deltaTime;
+            buttonRect.localScale = Vector3.Lerp(startScale, punchScale, elapsed / (duration / 2));
+            yield return null;
+        }
+
+        elapsed = 0;
+        // ѕовертаЇмо назад
+        while (elapsed < duration / 2)
+        {
+            elapsed += Time.deltaTime;
+            buttonRect.localScale = Vector3.Lerp(punchScale, startScale, elapsed / (duration / 2));
+            yield return null;
+        }
+        buttonRect.localScale = startScale;
+    }
 }

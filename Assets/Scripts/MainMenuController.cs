@@ -61,7 +61,6 @@ public class MainMenuController : MonoBehaviour
             if (source != null)
             {
                 source.volume = value;
-                Debug.Log($" ерую об'Їктом: {MusicManager.Instance.gameObject.name}, ID: {MusicManager.Instance.gameObject.GetInstanceID()}, √учн≥сть: {value}");
             }
         }
         PlayerPrefs.SetFloat("MusicVolume", value);

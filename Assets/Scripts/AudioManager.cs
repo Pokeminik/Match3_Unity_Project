@@ -6,6 +6,7 @@ public class AudioManager : Singleton<AudioManager>
     [SerializeField] private AudioClip matchSound;
     [SerializeField] private AudioClip explosionSound;
     [SerializeField] private AudioClip boosterSound;
+    [SerializeField] private AudioClip boosterCollectSound;
 
     private AudioSource _sfxSource;
 
@@ -14,7 +15,6 @@ public class AudioManager : Singleton<AudioManager>
         base.Awake();
         _sfxSource = gameObject.AddComponent<AudioSource>();
     }
-
     public void PlayMatch(int combo)
     {
         if (matchSound == null) return;
@@ -26,7 +26,6 @@ public class AudioManager : Singleton<AudioManager>
 
         _sfxSource.PlayOneShot(matchSound, vol);
     }
-
     public void PlayExplosion()
     {
         if (explosionSound == null) return;
@@ -34,5 +33,13 @@ public class AudioManager : Singleton<AudioManager>
         float vol = PlayerPrefs.GetFloat("SFXVolume", 0.5f);
         _sfxSource.pitch = Random.Range(0.9f, 1.1f); 
         _sfxSource.PlayOneShot(explosionSound, vol);
+    }
+    public void PlayBoosterCollect()
+    {
+        if (boosterCollectSound == null) return;
+
+        _sfxSource.pitch = Random.Range(1.1f, 1.3f);
+        _sfxSource.PlayOneShot(boosterCollectSound, PlayerPrefs.GetFloat("SFXVolume", 0.5f));
+        _sfxSource.pitch = 1f; 
     }
 }
