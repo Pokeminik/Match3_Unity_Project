@@ -40,9 +40,22 @@ public class GridManager : MonoBehaviour
     private HashSet<string> _bonusesEarnedThisMove = new HashSet<string>();
     public void SetBoosterMode(BoosterMode mode)
     {
+        if (_firstSelected != null)
+        {
+            _firstSelected.Deselect();
+            _firstSelected = null;
+        }
+
         _currentMode = mode;
-        if (_currentMode != BoosterMode.None) BoosterManager.Instance.HighlightBooster(_currentMode.ToString());
-        else BoosterManager.Instance.ResetAllBoosters();
+
+        if (_currentMode != BoosterMode.None)
+        {
+            BoosterManager.Instance.HighlightBooster(_currentMode.ToString());
+        }
+        else
+        {
+            BoosterManager.Instance.ResetAllBoosters();
+        }
     }
     public BoosterMode GetCurrentMode() => _currentMode;
     void Start()
